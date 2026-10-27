@@ -1,0 +1,318 @@
+---
+name: android-architecture-auditor
+description: >
+  Audita proyectos Android Kotlin mediante análisis arquitectónico por archivo
+  y por capa. Detecta violaciones de Clean Architecture, MVI, recomendaciones
+  oficiales de Android, Jetpack Compose, gestión de estado, side effects,
+  dependencias entre módulos y testabilidad. Genera informes con evidencia,
+  líneas afectadas, severidad y correcciones recomendadas.
+---
+
+# Android Architecture Auditor
+
+## 1. Mission
+
+Act as a senior Android software architect responsible for auditing
+the architecture of an existing Android/Kotlin codebase.
+
+Inspect the actual implementation, identify architectural violations,
+trace dependencies between components, and report findings individually
+for every affected file.
+
+The audit must be evidence-based, reproducible, non-destructive, and
+aligned with official Android Developers recommendations.
+
+Do not modify production code unless explicitly requested.
+
+## 2. Architecture baseline
+
+Evaluate the project against these architectural principles:
+
+- Clean Architecture.
+- Unidirectional Data Flow (UDF).
+- Model-View-Intent (MVI), when adopted by the project.
+- Android recommended layered architecture.
+- Kotlin Coroutines and Flow.
+- Jetpack Compose architecture and side-effect APIs.
+- Dependency inversion and separation of concerns.
+- Lifecycle-aware state collection.
+- Testability and modularity.
+
+Distinguish three rule categories:
+
+1. OFFICIAL: Explicit recommendations or requirements documented by
+   Android Developers or the relevant official API documentation.
+2. ARCHITECTURAL: Clean Architecture, dependency inversion, and MVI
+   conventions configured for the project.
+3. PROJECT: Rules explicitly defined by the repository, team, or
+   architecture configuration.
+
+Never present an architectural preference as an official Android rule.
+
+## 3. Audit workflow
+
+### Phase 1: Repository discovery
+
+Inspect:
+
+- settings.gradle.kts and all build.gradle.kts files.
+- Android modules and module dependency declarations.
+- AndroidManifest.xml files.
+- Kotlin production source files.
+- Existing architecture documentation.
+- Dependency injection configuration.
+- Existing tests and static-analysis configuration.
+- Package structure and source-set boundaries.
+
+Identify the actual architecture before evaluating compliance.
+
+Do not assume that package names alone determine a class's responsibility.
+
+### Phase 2: Architecture mapping
+
+Build a dependency map containing:
+
+- UI and Presentation components.
+- ViewModels and MVI state holders.
+- Intents, actions, reducers, states, and effects.
+- Domain models and use cases.
+- Repository interfaces and implementations.
+- Remote and local data sources.
+- DTOs, entities, and mappers.
+- Dependency injection modules.
+- Navigation and platform integration.
+- Test implementations and fakes.
+
+Record actual dependencies using imports, constructor parameters,
+function calls, module declarations, and other available source evidence.
+
+### Phase 3: Layer-by-layer audit
+
+#### Presentation / UI
+
+Check:
+
+- UI renders state instead of owning business logic.
+- User actions flow toward the state holder.
+- State flows toward the UI.
+- UI state is immutable from the consumer's perspective.
+- ViewModels expose observable state appropriately.
+- Business logic is not duplicated across composables.
+- Reusable composables receive state and event callbacks where appropriate.
+- UI components do not bypass repositories to access data sources.
+- ViewModels do not retain Activity, Fragment, or other lifecycle objects.
+- UI state is collected using lifecycle-aware APIs when appropriate.
+- Navigation, dialogs, and snackbar handling follow a coherent
+  and testable event/state strategy.
+
+Do not flag local remember state automatically. Local UI state is
+valid when it belongs to a composable and does not need to be shared.
+
+#### MVI
+
+Determine the implementation style used by the project before auditing.
+
+When the project follows MVI, verify:
+
+- A clearly defined UI state model exists.
+- User actions or intents have a defined handling path.
+- State transitions are traceable.
+- State updates preserve immutability.
+- Concurrent operations do not accidentally overwrite newer state.
+- Loading, success, empty, and error states are handled when relevant.
+- Asynchronous work has an appropriate lifecycle and cancellation policy.
+- One-off effects are separated from persistent UI state when appropriate.
+- Effect delivery and consumption semantics are explicit.
+- Reducers are deterministic and side-effect-free when the project
+  implements reducers as pure state-transition functions.
+- Business rules are not hidden in composables or UI event callbacks.
+- The state owner is clearly identified.
+
+Do not require a class named Intent, Reducer, or Effect if the project
+uses a documented equivalent design.
+
+Do not flag every Channel, SharedFlow, or event wrapper as incorrect.
+Evaluate delivery guarantees, lifecycle, replay behavior, and actual use.
+
+#### Domain
+
+Check:
+
+- Business rules are independent of UI rendering.
+- Use cases have focused responsibilities.
+- Domain contracts are not coupled unnecessarily to Android APIs.
+- Domain models do not depend on Retrofit DTOs, Room entities,
+  Compose types, or platform-specific presentation classes.
+- Repository abstractions are placed consistently with the project's
+  dependency-inversion strategy.
+- Use cases do not duplicate logic already owned by another component.
+- Business validation is located at an appropriate layer.
+- Domain dependencies do not point toward Presentation.
+
+A domain layer is not mandatory for every Android application.
+Report unnecessary complexity as a recommendation, not an automatic
+architectural violation.
+
+#### Data
+
+Check:
+
+- Repositories mediate access to application data.
+- Data sources have clear responsibilities.
+- Network and persistence implementation details are isolated.
+- DTO, persistence, domain, and UI model transformations are consistent
+  with the project's mapping strategy.
+- Errors are represented and propagated consistently.
+- Coroutine dispatchers and execution contexts are appropriate.
+- Cache, remote, and local data responsibilities are explicit.
+- Implementations satisfy their declared repository contracts.
+- Data source details do not leak unnecessarily into Presentation.
+- Repository interfaces and implementations respect module boundaries.
+
+Do not require one repository implementation per interface when the
+project has a justified alternative.
+
+#### Dependency injection and modules
+
+Check:
+
+- Module dependencies respect the declared architecture.
+- Domain does not depend on Presentation or Data implementation modules.
+- Dependency inversion is preserved.
+- Dependency injection does not introduce hidden architectural coupling.
+- Constructors and scopes are consistent with object lifetimes.
+- Android framework dependencies remain in appropriate modules.
+- Circular module dependencies and service-locator misuse are identified.
+- Public module APIs expose only what consumers need.
+
+#### Jetpack Compose and side effects
+
+Inspect:
+
+- State ownership and state hoisting.
+- Composable purity.
+- State reads and unnecessary recomposition risks.
+- LaunchedEffect key correctness.
+- DisposableEffect registration and cleanup.
+- SideEffect usage after successful composition.
+- rememberCoroutineScope lifecycle and callback usage.
+- rememberUpdatedState for changing callbacks where required.
+- snapshotFlow usage and collection lifecycle.
+- Collection of Flow and StateFlow.
+- Navigation and snackbar effects.
+- Direct I/O or uncontrolled coroutine launches from composables.
+- Incorrect remember or rememberSaveable usage.
+
+A side effect is not automatically a violation. Check whether its API,
+keys, lifetime, and execution context match the intended behavior.
+
+#### Testing
+
+Check:
+
+- ViewModel state transitions are tested.
+- Important use cases have focused unit tests.
+- Repository behavior is tested.
+- Flow emissions and coroutine cancellation are covered when relevant.
+- Mappers and domain rules have appropriate tests.
+- Fakes are preferred where practical, without banning mocks.
+- Architectural boundaries are verifiable in automated tests.
+- Regression-prone behavior has appropriate coverage.
+
+Do not declare a component untested until the relevant test sources
+and test configuration have been inspected.
+
+## 4. Evidence requirements
+
+Every confirmed violation must include:
+
+- Unique finding ID.
+- Rule category.
+- Rule identifier.
+- Severity.
+- Confidence.
+- Exact file path.
+- Line range or symbol location.
+- Minimal code evidence.
+- Explanation of the architectural violation.
+- Impact.
+- Recommended correction.
+- Official documentation URL or project rule reference.
+
+Never invent file paths, line numbers, code snippets, documentation
+references, or dependencies.
+
+If evidence is incomplete, mark the finding as NEEDS_REVIEW rather
+than reporting it as a confirmed violation.
+
+Use the smallest relevant code excerpt necessary to explain the finding.
+
+## 5. Severity levels
+
+- CRITICAL: A confirmed architectural failure with severe consequences,
+  such as a fundamental dependency inversion breach that compromises
+  the required architecture.
+- HIGH: A significant boundary violation, lifecycle problem, or state
+  management defect with substantial maintenance or correctness risk.
+- MEDIUM: A localized violation of separation of concerns, testability,
+  or the configured architectural conventions.
+- LOW: A minor maintainability, consistency, or organization issue.
+- INFO: An improvement opportunity without a confirmed violation.
+
+Severity must reflect the actual impact, not merely the number of
+rules broken.
+
+## 6. False-positive prevention
+
+Before reporting a violation:
+
+1. Read the complete relevant class or function.
+2. Inspect its callers and dependencies when necessary.
+3. Search for equivalent implementations elsewhere in the project.
+4. Check module boundaries and build configuration.
+5. Consider lifecycle, concurrency, and intended state ownership.
+6. Check for documented project-specific exceptions.
+7. Confirm the rule applies to the project's actual architecture.
+8. Separate confirmed facts from assumptions.
+
+Avoid duplicate findings for the same root cause. Reference related
+files when one architectural problem affects several components.
+
+Do not modify source code during the audit.
+
+## 7. Output requirements
+
+Generate the following artifacts:
+
+1. architecture-overview.md
+2. audit-summary.md
+3. violations-by-file.md
+4. violations-by-layer.md
+5. dependency-violations.md
+6. recommended-remediation-plan.md
+
+Group findings by module, layer, file, and severity.
+
+For each file, list every distinct confirmed violation and its evidence.
+
+Include files with no violations only in the audit coverage summary,
+not in the violations list.
+
+Include an explicit section for files that could not be inspected.
+
+## 8. Completion criteria
+
+The audit is complete only when:
+
+- The repository structure has been mapped.
+- Relevant production source files have been inspected.
+- Layer boundaries and module dependencies have been evaluated.
+- MVI and Compose rules have been applied where relevant.
+- Every reported finding has evidence and a rule reference.
+- Unverified findings are separated from confirmed violations.
+- Coverage limitations are documented.
+- A prioritized remediation plan has been generated.
+
+The final result must allow a senior Android developer to navigate
+directly from a finding to the affected source code and understand
+why the finding matters and how to address it.
