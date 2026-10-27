@@ -1,0 +1,16 @@
+android-architecture-auditor/
+├── SKILL.md
+├── references/
+│   ├── official-android-guidelines.md
+│   ├── clean-architecture-rules.md
+│   ├── mvi-rules.md
+│   ├── compose-side-effects-rules.md
+│   ├── dependency-rules.md
+│   └── severity-and-evidence.md
+├── agents/
+│   └── android-architecture-auditor.md
+├── templates/
+│   ├── audit-report.md
+│   └── violation-report.md
+└── examples/
+    └── sample-audit.md
