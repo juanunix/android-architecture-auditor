@@ -1,0 +1,112 @@
+class SFDocumentRouter(
+    val navigateMenuNP: NavigateMenuNP
+) : CFRouterProtocol() {
+
+    override fun onAttach(fragment: Fragment) {
+        this.fragment = fragment
+    }
+
+    override fun onDetach() {
+        this.fragment = null
+    }
+
+    fun navigateToTakeDocument(param: SFDocumentParam?) {
+        val initialFragment = CFDocumentSelectFragment.newInstance(param)
+        fragment?.activity?.replaceFragment(R.id.container_fragment, initialFragment, true)
+    }
+
+    fun navigateToFeedbackBiometricFragment(orderId: String, pollingTimer: Int,qualifier: CFFeedbackBiometricQualifier, screen: SFScreenModel) {
+        val param = SFFeedbackBiometricParam(
+            qualifier = qualifier,
+            orderId = orderId,
+            pollingTimer = pollingTimer,
+            screen = CFLayoutsUiModel(
+                icon = screen.icon,
+                title = screen.title,
+                showLoading = screen.showLoading,
+                description = screen.description,
+                loading = CFLoadingUiModel(
+                    running = screen.loading.running,
+                    timer = screen.loading.timer
+                )
+            )
+        )
+        val initialFragment = CFFeedbackBiometricFragment.newInstance(param)
+        fragment?.activity?.replaceFragment(R.id.container_fragment, initialFragment, true)
+    }
+
+    fun navigateCnhDigital(param: SFDocumentParam?) {
+        val initialFragment = CFCnhDigitalFragment.newInstance(param)
+        fragment?.activity?.replaceFragment(R.id.container_fragment, initialFragment, true)
+    }
+
+    fun navigateCnhDigitalInfo(base64: String) {
+        val param = SFDocumentParam(
+            qualifier = CFDocumentQualifier.SF_DOCUMENT,
+            base64 = base64
+        )
+        val initialFragment = CFCnhDigitalInfoFragment.newInstance(param)
+        fragment?.activity?.replaceFragment(R.id.container_fragment, initialFragment, true)
+    }
+
+    fun navigateToPreviewDocument(base64: String?) {
+        val param = SFDocumentParam(
+            qualifier = CFDocumentQualifier.SF_DOCUMENT,
+            base64 = base64.orEmpty()
+        )
+        val initialFragment = CFReviewDocumentFragment.newInstance(param)
+        fragment?.activity?.replaceFragment(
+            containerId = R.id.container_fragment,
+            fragment = initialFragment,
+            true
+        )
+    }
+
+    fun navigateToAttendance() {
+        fragment?.activity?.let { navigateMenuNP.navigateToAttendance(it) }
+    }
+
+    fun navigateToMessage(param: SFMessageParam) {
+        fragment?.activity?.let { CFMessageActivity.start(it, param) }
+    }
+
+    fun showErrorMessage(title: String = "", message: String) {
+        fragment?.activity?.let {
+            ErrorModalFragment.newInstance(
+                titleRes = R.string.core_label_atention,
+                hideCloseButton = false,
+                isCancelable = true,
+                description = message,
+                error = DataErrorModal.Error(
+                    origin = this::class.java.simpleName,
+                    throwable = ClaroFlowException(message)
+                ),
+            ).show(it.supportFragmentManager, this::class.java.simpleName)
+        }
+    }
+
+    fun popBackStack() {
+        fragment?.requireActivity()?.supportFragmentManager?.popBackStack()
+    }
+
+    fun processAccept() {
+        fragment?.parentFragmentManager?.setFragmentResult(
+            VERIFY_RESULT,
+            Bundle().apply {
+                putString(RESULT, VERIFY_OK)
+            }
+        )
+        popBackStack()
+    }
+
+    fun processCancel() {
+        fragment?.parentFragmentManager?.setFragmentResult(
+            VERIFY_RESULT,
+            Bundle().apply {
+                putString(RESULT, VERIFY_CANCEL)
+            }
+        )
+        popBackStack()
+    }
+
+}
