@@ -1,0 +1,9 @@
+interface CartsMapper : Mapper<ResponseGeneric<CartsResponse>, CartsModel>
+
+class CartsMapperImpl : CartsMapper {
+    override fun mapFrom(from: ResponseGeneric<CartsResponse>) =
+        CartsModel(
+            orderId = from.data?.orderId.orEmpty(),
+            cartContextKey = from.data?.cartContextKey.orEmpty()
+        )
+}
