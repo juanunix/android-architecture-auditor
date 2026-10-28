@@ -1,0 +1,57 @@
+import androidx.fragment.app.Fragment
+
+
+class SFChipStatusRouter(
+    private val navigateAttendance: NavigateAttendance,
+    private val navigateToHome: NavigateHomeNP,
+) : CFRouterProtocol() {
+
+    override fun onAttach(fragment: Fragment) {
+        this.fragment = fragment
+    }
+
+    override fun onDetach() {
+        this.fragment = null
+    }
+
+    fun navigateToChangeChipScreen() {
+        val params = SFChangeChipParam()
+        fragment?.activity?.let {
+            CFChangeChipActivity.start(
+                activity = it,
+                param = params
+            )
+        }
+    }
+    
+    fun navigateToHome() {
+        fragment?.context?.let {
+            navigateToHome.navigate(it, TAB_1)
+        }
+    }
+
+    fun showErrorMessage(title: String = "", message: String) {
+        fragment?.activity?.let {
+            ErrorModalFragment.newInstance(
+                titleRes = R.string.core_label_atention,
+                hideCloseButton = false,
+                isCancelable = true,
+                description = message,
+                error = DataErrorModal.Error(
+                    origin = this::class.java.simpleName,
+                    throwable = ClaroFlowException(message)
+                ),
+            ).show(it.supportFragmentManager, this::class.java.simpleName)
+        }
+    }
+
+    fun navigateToBack() {
+        fragment?.activity?.finish()
+    }
+
+    fun navigateToChat() {
+        fragment?.context?.let {
+            navigateAttendance.navigateToAttendance(it)
+        }
+    }
+}
