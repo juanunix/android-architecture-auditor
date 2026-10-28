@@ -1,0 +1,28 @@
+package br.com.claro.flex.core_theme.provider
+
+import android.content.Context
+import android.graphics.drawable.Drawable
+import androidx.core.content.ContextCompat
+
+internal class ResourceProviderImpl(private val context: Context) : ResourceProvider {
+
+    override fun getString(stringRest: Int): String {
+        return context.getString(stringRest)
+    }
+
+    override fun getString(stringRest: Int, params: String): String {
+        return context.getString(stringRest, params)
+    }
+
+    override fun getDrawable(drawableRes: Int): Drawable? {
+        return ContextCompat.getDrawable(context, drawableRes)
+    }
+
+    override fun getColor(colorRes: Int): Int {
+        return ContextCompat.getColor(context, colorRes)
+    }
+
+    override fun getDimension(dimenRes: Int): Float {
+        return context.resources.getDimension(dimenRes)
+    }
+}
