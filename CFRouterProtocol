@@ -1,0 +1,10 @@
+import androidx.fragment.app.Fragment
+
+abstract class CFRouterProtocol {
+
+    protected var fragment: Fragment? = null
+
+    abstract fun onAttach(fragment: Fragment)
+
+    abstract fun onDetach()
+}
