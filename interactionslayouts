@@ -1,0 +1,292 @@
+interface SFInteractionsLayoutsUseCase {
+    suspend operator fun invoke(action: SFInteractionAction):
+            ClaroResult<SFInteractionsLayoutsModel, ErrorResponse>
+}
+
+internal class SFInteractionsLayoutsUseCaseImpl(
+    private val repository: SFInteractionsLayoutsRepository,
+    private val mapper: SFInteractionsLayoutsMapper
+) : SFInteractionsLayoutsUseCase {
+    override suspend fun invoke(action: SFInteractionAction): ClaroResult<SFInteractionsLayoutsModel, ErrorResponse> {
+        return repository.getInteractionLayout(action = action)
+            .mapSuccess { mapper.mapFrom(it) }
+            .mapError { it }
+    }
+}
+
+
+package br.com.claro.flex.newplatform.common.domain.mapper.interactionslayouts
+
+import br.com.claro.flex.cfview.esim.reinstallesimscreen.CFLayoutsItemUiModel
+import br.com.claro.flex.cfview.esim.reinstallesimscreen.CFLayoutsUiModel
+import br.com.claro.flex.core.extensions.getTypeOrDefault
+import br.com.claro.flex.core.extensions.orZero
+import br.com.claro.flex.core.mapper.Mapper
+import br.com.claro.flex.core_network.remote.response.ResponseGeneric
+import br.com.claro.flex.core_network.router.SalesForce.response.interactionlayouts.SFInteractionsLayoutsResponse
+import br.com.claro.flex.core_theme.button.ButtonStyleType
+import br.com.claro.flex.core_theme.component.CFClaroButtonUiModel
+import br.com.claro.flex.newplatform.common.domain.model.interactionslayouts.SFClaroButtonModel
+import br.com.claro.flex.newplatform.common.domain.model.interactionslayouts.SFClaroItemsModel
+import br.com.claro.flex.newplatform.common.domain.model.interactionslayouts.SFInteractionsLayoutsModel
+
+interface SFInteractionsLayoutsMapper :
+    Mapper<ResponseGeneric<SFInteractionsLayoutsResponse>, SFInteractionsLayoutsModel>
+
+internal class SFInteractionsLayoutsMapperImpl : SFInteractionsLayoutsMapper {
+    override fun mapFrom(from: ResponseGeneric<SFInteractionsLayoutsResponse>): SFInteractionsLayoutsModel {
+        val data = from.data?.screen
+        return SFInteractionsLayoutsModel(
+            icon = data?.icon.orEmpty(),
+            title = data?.title.orEmpty(),
+            description = data?.description.orEmpty(),
+            items = data?.items?.map {
+                SFClaroItemsModel(
+                    order = it.order.orZero(),
+                    icon = it.icon.orEmpty(),
+                    text = it.text.orEmpty()
+                )
+
+            } ?: emptyList(),
+            bottomButtons = data?.bottomButtons?.map {
+                SFClaroButtonModel(
+                    title = it.title.orEmpty(),
+                    action = it.action.orEmpty(),
+                    type = getTypeOrDefault(it.type?.uppercase().orEmpty(), ButtonStyleType.PRIMARY)
+                )
+            } ?: emptyList()
+        )
+    }
+}
+fun SFInteractionsLayoutsModel.toCFLayoutsModel() =
+    CFLayoutsUiModel(
+        icon = this.icon,
+        title = this.title,
+        description = this.description,
+        items = this.items.map {
+            CFLayoutsItemUiModel(
+                order = it.order,
+                icon = it.icon,
+                text = it.text
+            )
+        },
+        bottomButtons = this.bottomButtons.map {
+            CFClaroButtonUiModel(
+                title = it.title,
+                action = it.action,
+                type = it.type
+            )
+        }
+    )
+
+
+import br.com.claro.flex.core_network.remote.ClaroResult
+import br.com.claro.flex.core_network.remote.response.ErrorResponse
+import br.com.claro.flex.core_network.remote.response.ResponseGeneric
+import br.com.claro.flex.core_network.router.SalesForce.enums.SFInteractionAction
+import br.com.claro.flex.core_network.router.SalesForce.response.interactionlayouts.SFInteractionsLayoutsResponse
+
+
+interface SFInteractionsLayoutsRepository {
+    suspend fun getInteractionLayout(
+        action: SFInteractionAction
+    ): ClaroResult<ResponseGeneric<SFInteractionsLayoutsResponse>, ErrorResponse>
+}
+
+package br.com.claro.flex.core_network.remote
+
+import androidx.annotation.Keep
+
+@Keep
+sealed class ClaroResult<out D, out E> {
+    data class Success<D>(val value: D) : ClaroResult<D, Nothing>()
+    data class Error<E>(val value: E) : ClaroResult<Nothing, E>()
+
+    inline fun handleResult(
+        onSuccess: (result: D) -> Unit = {},
+        onError: (error: E) -> Unit = {},
+        onFinish: (D?) -> Unit = {}
+    ): D? = when (this) {
+        is Success -> {
+            onSuccess(value)
+            onFinish(value)
+            value
+        }
+        is Error -> {
+            onError(value)
+            onFinish(null)
+            null
+        }
+    }
+
+    inline fun <T> mapSuccess(transform: (D) -> T): ClaroResult<T, E> = when (this) {
+        is Success -> Success(transform(value))
+        is Error -> Error(value)
+    }
+
+    inline fun getSuccess(): D? = when (this) {
+        is Success -> value
+        is Error -> null
+    }
+
+    inline fun getError(): E? = when (this) {
+        is Success -> null
+        is Error -> value
+    }
+
+    inline fun <T> mapError(transform: (E) -> T): ClaroResult<D, T> = when (this) {
+        is Success -> Success(value)
+        is Error -> Error(transform(value))
+    }
+
+    inline fun onSuccess(block: (D) -> Unit): ClaroResult<D, E> {
+        if (this is Success) block(value)
+        return this
+    }
+
+    inline fun onError(block: (E) -> Unit): ClaroResult<D, E> {
+        if (this is Error) block(value)
+        return this
+    }
+
+    inline fun onFinish(block: (D?) -> Unit): ClaroResult<D, E> {
+        if (this is Success) block(value) else block(null)
+        return this
+    }
+
+    inline fun <T, F> flatMap(
+        transformSuccess: (D) -> ClaroResult<T, F>,
+        transformError: (E) -> ClaroResult<T, F>
+    ): ClaroResult<T, F> = when (this) {
+        is Success -> transformSuccess(value)
+        is Error -> transformError(value)
+    }
+
+    suspend fun <T, F> then(
+        result: suspend (ClaroResult<D, E>) -> ClaroResult<T, F>
+    ): ClaroResult<T, F> = when (this) {
+        is Success -> result(this)
+        is Error -> Error(value as F)
+    }
+
+    fun isSuccess() = (this is Success)
+}
+
+package br.com.claro.flex.core_network.remote
+
+import androidx.annotation.Keep
+import br.com.claro.flex.cfanalytics.dynatrace.ClaroDynatraceEventsRouter
+import br.com.claro.flex.core.extensions.isDecodeError
+import br.com.claro.flex.core_network.domain.model.ErrorModel
+import br.com.claro.flex.core_network.remote.response.ErrorResponse
+import br.com.claro.flex.core_network.remote.response.NpErrorResponse
+import br.com.claro.flex.core_network.remote.response.UNEXPECTED
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import retrofit2.HttpException
+
+@Keep
+suspend fun <T> safeApiCall(
+    dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    dynatraceEventsRouter: ClaroDynatraceEventsRouter? = null,
+    apiCall: suspend () -> T
+): ClaroResult<T, ErrorResponse> {
+    return withContext(dispatcher) {
+        try {
+            ClaroResult.Success(apiCall())
+        } catch (exception: Exception) {
+            val errorResponseException = exception as? ErrorResponse
+            ClaroResult.Error(
+                when (exception) {
+                    is NpErrorResponse -> {
+                        getNpExceptionError(exception)
+                    }
+
+                    else -> {
+                        errorResponseException ?: getExceptionError(exception)
+                    }
+                }
+            )
+        }
+    }
+}
+
+private fun getExceptionError(exception: java.lang.Exception): ErrorResponse {
+    return ErrorResponse(
+        statusCode = getExceptionErrorCode(exception).toIntOrNull(),
+        message = "Algo deu errado! Não foi possível atender sua solicitação neste momento. Por favor, tente novamente."
+    )
+}
+
+private fun getExceptionErrorCode(exception: java.lang.Exception) =
+    if (exception is HttpException) {
+        exception.code().toString()
+    } else {
+        UNEXPECTED
+    }
+
+private fun getNpExceptionError(exception: java.lang.Exception): ErrorResponse {
+    return (exception as? NpErrorResponse)?.toErrorResponse() ?: ErrorResponse()
+}
+
+fun ErrorResponse.toErrorModel() = ErrorModel(
+    errorCode = this.code.orEmpty(),
+    message = this.message.orEmpty(),
+    detailedMessage = this.detailedMessage.orEmpty(),
+    response = this.response
+)
+
+fun NpErrorResponse.toErrorResponse() = ErrorResponse(
+    message = this.error?.message.orEmpty(),
+    detailedMessage = this.error?.detailedMessage.orEmpty(),
+    statusCode = this.error?.httpCode?.toIntOrNull(),
+    code = this.error?.errorCode.orEmpty(),
+    response = this.response
+)
+
+import br.com.claro.flex.core_network.remote.ClaroResult
+import br.com.claro.flex.core_network.remote.response.ErrorResponse
+import br.com.claro.flex.core_network.remote.response.ResponseGeneric
+import br.com.claro.flex.core_network.router.SalesForce.enums.SFInteractionAction
+import br.com.claro.flex.core_network.router.SalesForce.response.interactionlayouts.SFInteractionsLayoutsResponse
+
+
+interface SFInteractionsLayoutsRepository {
+    suspend fun getInteractionLayout(
+        action: SFInteractionAction
+    ): ClaroResult<ResponseGeneric<SFInteractionsLayoutsResponse>, ErrorResponse>
+}
+
+
+import br.com.claro.flex.core_network.remote.safeApiCall
+import br.com.claro.flex.core_network.router.SalesForce.SFApi
+import br.com.claro.flex.core_network.router.SalesForce.enums.SFInteractionAction
+import br.com.claro.flex.newplatform.common.domain.repository.interactionlayouts.SFInteractionsLayoutsRepository
+
+class SFInteractionsLayoutsRepositoryImpl(
+    private val api: SFApi
+) : SFInteractionsLayoutsRepository {
+    override suspend fun getInteractionLayout(action: SFInteractionAction) = safeApiCall {
+        api.getInteractionsLayouts(
+            action = action
+        )
+    }
+}
+
+ @GET("flexbff/v1/app/interactionlayouts")
+    suspend fun getInteractionsLayouts(
+        @Header("Accept") accept: String = ACCEPT,
+        @Query("action") action: SFInteractionAction?,
+    ): ResponseGeneric<SFInteractionsLayoutsResponse>
+
+
+import androidx.annotation.Keep
+
+@Keep
+data class ResponseGeneric<T>(
+    val apiVersion: String? = null,
+    val transactionId: String? = null,
+    val data: T?
+)
+
